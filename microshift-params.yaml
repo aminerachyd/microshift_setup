@@ -1,0 +1,15 @@
+cluster: blablaconf
+domain: aminerachyd.com
+image: fedora35
+#memory: 8192
+memory: 4096
+network: default
+nightly: False
+nodes: 1
+noname: False
+#numcpus: 8
+numcpus: 8
+podman: False
+pull_secret: None
+register_acm: False
+sslip: True

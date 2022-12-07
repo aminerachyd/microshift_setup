@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ibm-toolkit
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ibm-toolkit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: ibm-toolkit
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-toolkit
+  namespace: default
+data:
+  tools_namespace: tools
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ibm-toolkit
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        run: ibm-toolkit
+    spec:
+      serviceAccountName: ibm-toolkit
+      volumes:
+      - name: source
+        emptyDir: {}
+      containers:
+      - image: quay.io/ibmgaragecloud/cli-tools:v0.15
+        name: toolkit
+        envFrom:
+        - configMapRef:
+            name: ibm-toolkit
+          prefix: TF_VAR_
+        volumeMounts:
+        - mountPath: /source
+          name: source
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -ex
+          git clone -b master --depth=1 https://github.com/cloud-native-toolkit/ibm-garage-iteration-zero.git /source
+          cd /source
+
+          # Customize Installation
+
+          # Add components
+          # cp terraform/stages-ocp4/catalog/stage2-jaeger.tf terraform/stages-ocp4/
+
+          # Remove any of these if you already have them available outside the cluster
+          # rm terraform/stages-ocp4/stage2-argocd.tf
+          # rm terraform/stages-ocp4/stage2-artifactory.tf
+          # rm terraform/stages-ocp4/stage2-sonarqube.tf
+          # rm terraform/stages-ocp4/stage2-pactbroker.tf
+
+          # Remove Optional addons not utilize during default pipeline runs
+          # rm terraform/stages-ocp4/stage2-swagger-editor.tf
+
+          export TF_VAR_server_url=$(oc whoami --show-server)
+          set +x
+          export TF_VAR_login_token=$(oc whoami -t)
+          STARTTIME=$(date +%s)
+          ./terraform/runTerraform.sh --ocp -a
+          DURATION=$(($(date +%s) - $STARTTIME))
+          echo -e "\033[0;92m Toolkit install took: $(($DURATION / 60))m$(($DURATION % 60))s \033[0m"
+      restartPolicy: Never
